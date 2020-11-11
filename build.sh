@@ -3,7 +3,7 @@
 # Exit on errors
 set -e
 
-version="12.1"
+version="12.2"
 pkgset="branches/2020Q1" # TODO: Use it
 desktop=$1
 tag=$2
@@ -11,7 +11,7 @@ cwd=$(realpath | sed 's|/scripts||g')
 workdir="/usr/local"
 livecd="${workdir}/furybsd"
 if [ -z "${arch}" ] ; then
-  arch=amd64
+  arch=arm64
 fi
 cache="${livecd}/${arch}/cache"
 base="${cache}/${version}/base"
@@ -98,11 +98,11 @@ workspace()
 base()
 {
   # TODO: Signature checking
-  if [ ! -f "${base}/base.txz" ] ; then 
+  if [ ! -f "${base}/base.txz" ] ; then
     cd ${base}
     fetch https://download.freebsd.org/ftp/releases/${arch}/${version}-RELEASE/base.txz
   fi
-  
+
   if [ ! -f "${base}/kernel.txz" ] ; then
     cd ${base}
     fetch https://download.freebsd.org/ftp/releases/${arch}/${version}-RELEASE/kernel.txz
@@ -119,20 +119,20 @@ packages()
   mkdir ${uzip}/var/cache/pkg
   mount_nullfs ${packages} ${uzip}/var/cache/pkg
   mount -t devfs devfs ${uzip}/dev
-  # FIXME: In the following line, the hardcoded "i386" needs to be replaced by "${arch}" - how?
-  cat "${cwd}/settings/packages.common" | sed '/^#/d' | sed '/\!i386/d' | xargs /usr/local/sbin/pkg-static -c "${uzip}" install -y
+
+  cat "${cwd}/settings/packages.common" | sed '/^#/d' | sed '/\!'"${arch}"'/d' | cut -f1 -d'#' | xargs /usr/local/sbin/pkg-static -c "${uzip}" install -y
   while read -r p; do
+    echo "${p}"
     /usr/local/sbin/pkg-static -c ${uzip} install -y /var/cache/pkg/"${p}"-0.txz
   done <"${cwd}"/settings/overlays.common
-  # TODO: Show dependency tree so that we know why which pkgs get installed
-  # cat "${cwd}/settings/packages.common" | sed '/^#/d' | sed '/\!'"${arch}"'/d' | xargs /usr/local/sbin/pkg-static -c "${uzip}" info -d
-  # cat "${cwd}/settings/packages.${desktop}" | sed '/^#/d' | sed '/\!'"${arch}"'/d' | xargs /usr/local/sbin/pkg-static -c "${uzip}" info -d
-  cat "${cwd}/settings/packages.${desktop}" | sed '/^#/d' | sed '/\!i386/d' | xargs /usr/local/sbin/pkg-static -c "${uzip}" install -y
+
+  cat "${cwd}/settings/packages.${desktop}" | sed '/^#/d' | sed '/\!'"${arch}"'/d' | cut -f1 -d'#' | xargs /usr/local/sbin/pkg-static -c "${uzip}" install -y
   if [ -f "${cwd}/settings/overlays.${desktop}" ] ; then
     while read -r p; do
       /usr/local/sbin/pkg-static -c ${uzip} install -y /var/cache/pkg/"${p}"-0.txz
     done <"${cwd}/settings/overlays.${desktop}"
   fi
+
   /usr/local/sbin/pkg-static -c ${uzip} info > "${cdroot}/data/system.uzip.manifest"
   cp "${cdroot}/data/system.uzip.manifest" "${isopath}.manifest"
   rm ${uzip}/etc/resolv.conf
@@ -213,17 +213,17 @@ pkg()
   cd -
 }
 
-uzip() 
+uzip()
 {
   install -o root -g wheel -m 755 -d "${cdroot}"
   cd ${cwd} && zpool export furybsd && while zpool status furybsd >/dev/null; do :; done 2>/dev/null
   mkuzip -S -d -o "${cdroot}/data/system.uzip" "${livecd}/pool.img"
 }
 
-ramdisk() 
+ramdisk()
 {
   cp -R "${cwd}/overlays/ramdisk/" "${ramdisk_root}"
-  cd ${cwd} && zpool import furybsd && zfs set mountpoint=/usr/local/furybsd/uzip furybsd 
+  cd ${cwd} && zpool import furybsd && zfs set mountpoint=/usr/local/furybsd/uzip furybsd
   cd "${uzip}" && tar -cf - rescue | tar -xf - -C "${ramdisk_root}"
   touch "${ramdisk_root}/etc/fstab"
   cp ${uzip}/etc/login.conf ${ramdisk_root}/etc/login.conf
@@ -232,7 +232,7 @@ ramdisk()
   rm -rf "${ramdisk_root}"
 }
 
-boot() 
+boot()
 {
   cp -R "${cwd}/overlays/boot/" "${cdroot}"
   cd "${uzip}" && tar -cf - --exclude boot/kernel boot | tar -xf - -C "${cdroot}"
