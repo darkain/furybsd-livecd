@@ -1,7 +1,34 @@
 #!/bin/sh
 
-BOOTMODE=$(/sbin/sysctl -n machdep.bootmethod)
-export BOOTMODE
+ARCH=$(/sbin/sysctl -n hw.machine)
+export ARCH
+
+
+if [ "${ARCH}" = "arm64" ]; then
+
+  BOOTMODE='UEFI'
+  export BOOTMODE
+
+  VM_GUEST=''
+  export VM_GUEST
+
+  HV_VENDOR=''
+  export HV_VENDOR
+
+else
+
+  BOOTMODE=$(/sbin/sysctl -n machdep.bootmethod)
+  export BOOTMODE
+
+  VM_GUEST=$(/sbin/sysctl -n kern.vm_guest)
+  export VM_GUEST
+
+  HV_VENDOR=$(/sbin/sysctl -n hw.hv_vendor | /usr/bin/awk '{print $1}')
+  export HV_VENDOR
+
+fi
+
+
 
 if [ "${BOOTMODE}" = "BIOS" ]; then
   cp /usr/home/liveuser/xorg.conf.d/driver-vesa.conf /etc/X11/xorg.conf >/dev/null 2>/dev/null
@@ -11,11 +38,6 @@ if [ "${BOOTMODE}" = "UEFI" ]; then
   cp /usr/home/liveuser/xorg.conf.d/driver-scfb.conf /etc/X11/xorg.conf >/dev/null 2>/dev/null
 fi
 
-VM_GUEST=$(/sbin/sysctl -n kern.vm_guest)
-export VM_GUEST
-
-HV_VENDOR=$(/sbin/sysctl -n hw.hv_vendor | /usr/bin/awk '{print $1}')
-export HV_VENDOR
 
 if [ "${VM_GUEST}" = "xen" ]; then
   /usr/sbin/sysrc devd_enable="NO" >/dev/null 2>/dev/null
@@ -83,6 +105,6 @@ fi
 /usr/sbin/sysrc -f /etc/rc.conf allscreens_kbdflags="-b quiet.off" >/dev/null 2>/dev/null
 /usr/sbin/sysrc -f /etc/rc.conf ifconfig_DEFAULT="DHCP inet6 accept_rtadv" >/dev/null 2>/dev/null
 /usr/sbin/sysrc -f /etc/rc.conf webcamd_enable="YES" >/dev/null 2>/dev/null
-/usr/sbin/sysrc -f /etc/rc.conf avahi_daemon_enable="YES" >/dev/null 2>/dev/null
-/usr/sbin/sysrc -f /etc/rc.conf ntpd_enable="NO" >/dev/null 2>/dev/null # Seems to conflict with ntpdate
-/usr/sbin/sysrc -f /etc/rc.conf ntpdate_enable="YES" >/dev/null 2>/dev/null
+/usr/sbin/sysrc -f /etc/rc.conf avahi_daemon_enable="NO" >/dev/null 2>/dev/null
+/usr/sbin/sysrc -f /etc/rc.conf ntpd_enable="YES" >/dev/null 2>/dev/null # Seems to conflict with ntpdate
+/usr/sbin/sysrc -f /etc/rc.conf ntpdate_enable="NO" >/dev/null 2>/dev/null
