@@ -27,6 +27,8 @@ MD0=md$(MD)
 MDP=$(MD0)p1
 
 
+.PATH : $(BASE)
+
 
 all: test
 
@@ -70,31 +72,43 @@ workspace:
 
 
 
-$(BASE)/base.txz:
-	fetch $(HOST)/$(ARCH)/$(VERSION)-$(RELEASE)/base.txz -o $(BASE)/base.txz
-	tar -zxvf $(BASE)/base.txz		-C $(UZIP)
 
-$(BASE)/kernel.txz:
-	fetch $(HOST)/$(ARCH)/$(VERSION)-$(RELEASE)/kernel.txz -o $(BASE)/kernel.txz
-	tar -zxvf $(BASE)/kernel.txz	-C $(UZIP)
-
-extractbase:
-	tar -zxvf $(BASE)/base.txz		-C $(UZIP)
-	tar -zxvf $(BASE)/kernel.txz	-C $(UZIP)
-
-base: $(BASE)/base.txz
-base: $(BASE)/kernel.txz
+################################################################################
+# WORLD FILES: BASE AND KERNEL
+################################################################################
+world-files := base.txz kernel.txz
 
 
-cleanbase:
-	umount $(UZIP)/var/cache/pkg	>/dev/null 2>/dev/null	|| true
-	umount $(UZIP)/dev				>/dev/null 2>/dev/null	|| true
-	rm -r  $(UZIP)			|| true
+$(world-files):
+	@echo $@
+	fetch $(HOST)/$(ARCH)/$(VERSION)-$(RELEASE)/$@ -o $(BASE)/$@
+
+
+extract-world:
+.for FILE in $(world-files)
+	tar -zxvf $(BASE)/$(FILE) -C $(UZIP)
+.endfor
+
+
+world: $(world-files) extract-world
+
+
+clean-world:
 	rm $(BASE)/base.txz		|| true
 	rm $(BASE)/kernel.txz	|| true
+	#umount $(UZIP)/var/cache/pkg	>/dev/null 2>/dev/null	|| true
+	#umount $(UZIP)/dev				>/dev/null 2>/dev/null	|| true
+	#rm -r  $(UZIP)			|| true
 
 
 
+
+################################################################################
+# PACKAGES
+################################################################################
+pkglist !=	cat "$(.CURDIR)/settings/packages.common" | \
+			sed '/\!'"$(ARCH)"'/d' | \
+			cut -f1 -d'\#'
 
 packages:
 	cp /etc/resolv.conf $(UZIP)/etc/resolv.conf
@@ -103,13 +117,14 @@ packages:
 	mount -t devfs devfs $(UZIP)/dev
 
 
+package-list: packages
+	pkg-static --chroot="$(UZIP)" install $(pkglist)
 
-extract: extractbase
 
+extract-packages:
 
+extract: extract-world extract-packages
 
-#base:
-#	touch $(uzip)/etc/fstab
 
 
 #cleanup
